@@ -33,13 +33,15 @@ export class Enemy {
     this.aiState = 'WANDER';
     this.aiTimer = 1 + Math.random();
     this.wanderAngle = Math.random() * Math.PI * 2;
+    this.strafeDir = Math.random() > 0.5 ? 1 : -1;
+    this.strafeTimer = 1 + Math.random();
     this.inBush = false;
   }
 
   setupStats() {
     switch(this.type) {
         case 'COLT':
-            this.speed = 120;
+            this.speed = 260;
             this.maxHealth = 600;
             this.fireRate = 3.0; // Longer pause between bursts
             this.range = 550;
@@ -48,7 +50,7 @@ export class Enemy {
             this.burstInterval = 0.12; // Slightly slower burst to see bullets
             break;
         case 'EL_PRIMO':
-            this.speed = 160;
+            this.speed = 310;
             this.maxHealth = 1300;
             this.fireRate = 1.2;
             this.range = 150;
@@ -57,7 +59,7 @@ export class Enemy {
             this.burstInterval = 0.08;
             break;
         case 'SHELLY':
-            this.speed = 100;
+            this.speed = 240;
             this.maxHealth = 800;
             this.fireRate = 1.8;
             this.range = 350;
@@ -80,75 +82,6 @@ export class Enemy {
   update(dt, player, projectiles, activeMode, mapGems, mapManager) {
     if (!this.active) return;
 
-    if (player.active) {
-        this.angle = Math.atan2(player.y - this.y, player.x - this.x);
-    }
-
-    let targetX = player.active ? player.x : 1000;
-    let targetY = player.active ? player.y : 1000;
-    let targetDist = player.active ? Math.hypot(this.x - player.x, this.y - player.y) : Infinity;
-
-    // Movement logic
-    if (activeMode === 'GEM_GRAB') {
-        if (this.gemCount < 10) {
-            let closestGem = null;
-            let minGemDist = Infinity;
-            if (mapGems) {
-                for (const gem of mapGems) {
-                    const d = Math.hypot(this.x - gem.x, this.y - gem.y);
-                    if (d < minGemDist) {
-                        minGemDist = d;
-                        closestGem = gem;
-                    }
-                }
-            }
-            if (closestGem && minGemDist < targetDist) {
-                targetX = closestGem.x;
-                targetY = closestGem.y;
-                targetDist = minGemDist;
-            }
-        } else {
-            targetX = this.x + (this.x - player.x);
-            targetY = this.y + (this.y - player.y);
-            targetDist = Math.hypot(this.x - targetX, this.y - targetY);
-        }
-    }
-
-    let dx = 0;
-    let dy = 0;
-
-    // Different AI behavior based on type
-    let desiredDist = this.range * 0.7;
-    if (this.type === 'EL_PRIMO') desiredDist = 40;
-
-    if (targetDist > desiredDist) {
-        const moveAngle = Math.atan2(targetY - this.y, targetX - this.x);
-        dx = Math.cos(moveAngle);
-        dy = Math.sin(moveAngle);
-    } else if (targetDist < desiredDist * 0.5 && this.type !== 'EL_PRIMO') {
-        const moveAngle = Math.atan2(targetY - this.y, targetX - this.x);
-        dx = -Math.cos(moveAngle);
-        dy = -Math.sin(moveAngle);
-    }
-
-    if (dx !== 0 || dy !== 0) {
-        const nextX = this.x + dx * this.speed * dt;
-        const nextY = this.y + dy * this.speed * dt;
-
-        if (mapManager) {
-            const collisionX = mapManager.checkCollision(nextX, this.y, this.radius);
-            if (!collisionX.collided) this.x = nextX;
-            const collisionY = mapManager.checkCollision(this.x, nextY, this.radius);
-            if (!collisionY.collided) this.y = nextY;
-        } else {
-            this.x = nextX;
-            this.y = nextY;
-        }
-    }
-
-    this.x = Math.max(this.radius, Math.min(2000 - this.radius, this.x));
-    this.y = Math.max(this.radius, Math.min(2000 - this.radius, this.y));
-
     this.aiTimer -= dt;
     this.strafeTimer -= dt;
     if (this.strafeTimer <= 0) {
@@ -166,15 +99,13 @@ export class Enemy {
 
     // Gem Grab Priority
     let targetGem = null;
-    if (activeMode === 'GEM_GRAB' && this.gemCount < 10) {
+    if (activeMode === 'GEM_GRAB' && this.gemCount < 10 && mapGems) {
         let minGemDist = Infinity;
-        if (mapGems) {
-            for (const gem of mapGems) {
-                const d = Math.hypot(this.x - gem.x, this.y - gem.y);
-                if (d < minGemDist) {
-                    minGemDist = d;
-                    targetGem = gem;
-                }
+        for (const gem of mapGems) {
+            const d = Math.hypot(this.x - gem.x, this.y - gem.y);
+            if (d < minGemDist) {
+                minGemDist = d;
+                targetGem = gem;
             }
         }
     }
@@ -183,7 +114,7 @@ export class Enemy {
     if (this.health < this.maxHealth * 0.35 && this.aiState !== 'RETREAT') {
         this.aiState = 'RETREAT';
         this.aiTimer = 5;
-    } else if (targetGem && this.aiState !== 'RETREAT') {
+    } else if (targetGem && this.aiState !== 'RETREAT' && this.aiState !== 'ATTACK') {
         this.aiState = 'GET_GEMS';
     } else if (canSeePlayer) {
         if (this.aiState === 'AMBUSH') {
@@ -191,22 +122,25 @@ export class Enemy {
         } else if (this.aiState !== 'RETREAT') {
             this.aiState = 'ATTACK';
         }
-    } else if (this.aiState === 'ATTACK' || this.aiState === 'GET_GEMS') {
-        this.aiState = 'WANDER';
-        this.aiTimer = 2;
-    } else if (this.aiState === 'AMBUSH' && this.aiTimer <= 0) {
-        this.aiState = 'WANDER';
-        this.aiTimer = 2;
+    } else {
+        // No player seen and not retreating/getting gems -> Wander or Ambush
+        if (this.aiState === 'ATTACK' || this.aiState === 'GET_GEMS') {
+            this.aiState = 'WANDER';
+            this.aiTimer = 2;
+        } else if (this.aiState === 'AMBUSH' && this.aiTimer <= 0) {
+            this.aiState = 'WANDER';
+            this.aiTimer = 2;
+        }
     }
 
-    // AI Actions based on state
+    // AI Movement Calculation
     let ax = 0, ay = 0;
+    
     if (this.aiState === 'GET_GEMS' && targetGem) {
         const angle = Math.atan2(targetGem.y - this.y, targetGem.x - this.x);
         ax = Math.cos(angle);
         ay = Math.sin(angle);
     } else if (this.aiState === 'RETREAT') {
-        // Move towards nearest bush
         let nearestBush = null;
         let minBDist = Infinity;
         if (mapManager) {
@@ -230,16 +164,34 @@ export class Enemy {
         if (this.health > this.maxHealth * 0.8 || this.aiTimer <= 0) this.aiState = 'WANDER';
     } else if (this.aiState === 'ATTACK') {
         const angle = Math.atan2(player.y - this.y, player.x - this.x);
-        if (distToPlayer > this.range * 0.7) {
+        if (this.type === 'EL_PRIMO') {
             ax = Math.cos(angle);
             ay = Math.sin(angle);
-        } else if (distToPlayer < this.range * 0.4 && this.type !== 'EL_PRIMO') {
-            ax = -Math.cos(angle);
-            ay = -Math.sin(angle);
+            // Dodging (Toned down)
+            for (const proj of projectiles) {
+                if (proj.isPlayer && proj.active) {
+                    const d = Math.hypot(this.x - proj.x, this.y - proj.y);
+                    if (d < 100) { // Reduced from 150
+                        const dodgeAngle = Math.atan2(proj.vy, proj.vx) + (Math.PI / 2) * this.strafeDir;
+                        ax += Math.cos(dodgeAngle) * 1.0; // Reduced from 2.0
+                        ay += Math.sin(dodgeAngle) * 1.0;
+                    }
+                }
+            }
+        } else {
+            // Ranged behavior
+            if (distToPlayer > this.range * 0.8) {
+                ax = Math.cos(angle);
+                ay = Math.sin(angle);
+            } else if (distToPlayer < this.range * 0.5) {
+                ax = -Math.cos(angle);
+                ay = -Math.sin(angle);
+            }
+            // Strafe (Toned down)
+            const strafeAngle = angle + (Math.PI / 2) * this.strafeDir;
+            ax += Math.cos(strafeAngle) * 0.3; // Reduced from 0.6
+            ay += Math.sin(strafeAngle) * 0.3;
         }
-        const strafeAngle = angle + (Math.PI / 2) * this.strafeDir;
-        ax += Math.cos(strafeAngle) * 0.8;
-        ay += Math.sin(strafeAngle) * 0.8;
     } else if (this.aiState === 'WANDER') {
         if (this.aiTimer <= 0) {
             this.wanderAngle = Math.random() * Math.PI * 2;
@@ -272,30 +224,22 @@ export class Enemy {
         }
     }
 
+    // Apply Movement
     if (ax !== 0 || ay !== 0) {
         const mag = Math.hypot(ax, ay);
         if (mag > 0.01) {
-            const nax = ax / mag;
-            const nay = ay / mag;
-            const nextX = this.x + nax * this.speed * dt;
-            const nextY = this.y + nay * this.speed * dt;
-
+            const nextX = this.x + (ax / mag) * this.speed * dt;
+            const nextY = this.y + (ay / mag) * this.speed * dt;
             if (mapManager) {
-                const collisionX = mapManager.checkCollision(nextX, this.y, this.radius);
-                if (!collisionX.collided) this.x = nextX;
-                const collisionY = mapManager.checkCollision(this.x, nextY, this.radius);
-                if (!collisionY.collided) this.y = nextY;
-                if (collisionX.collided && collisionY.collided && this.aiState === 'ATTACK') {
-                    this.strafeDir *= -1;
-                }
+                if (!mapManager.checkCollision(nextX, this.y, this.radius).collided) this.x = nextX;
+                if (!mapManager.checkCollision(this.x, nextY, this.radius).collided) this.y = nextY;
             } else {
-                this.x = nextX;
-                this.y = nextY;
+                this.x = nextX; this.y = nextY;
             }
         }
     }
 
-    // Final Clamping
+    // Clamping
     this.x = Math.max(this.radius, Math.min(2000 - this.radius, this.x));
     this.y = Math.max(this.radius, Math.min(2000 - this.radius, this.y));
 

@@ -47,6 +47,9 @@ let totalPP = parseInt(localStorage.getItem('brawlPowerPoints') || '0');
 let playerLevel = parseInt(localStorage.getItem('brawlPlayerLevel') || '1');
 let isBublykUnlocked = localStorage.getItem('isBublykUnlocked') === 'true';
 let isSmaiUnlocked = localStorage.getItem('isSmaiUnlocked') === 'true';
+let isMaximUnlocked = localStorage.getItem('isMaximUnlocked') === 'true';
+let isNestorUnlocked = localStorage.getItem('isNestorUnlocked') === 'true';
+let isDarinaUnlocked = localStorage.getItem('isDarinaUnlocked') === 'true';
 
 // Poison gas variables for Showdown mode
 let safeZoneRadius = MAP_SIZE;
@@ -290,15 +293,18 @@ function updateSuperZones(dt) {
             }
         }
 
-        if (zone.isCompanion && zone.type === 'ROBO_SPIDER') {
+        if (zone.isCompanion && (zone.type === 'ROBO_SPIDER' || zone.type === 'DARYNA_CLONE')) {
             // Follow player
             const dx = player.x - zone.x;
             const dy = player.y - zone.y;
             const dist = Math.hypot(dx, dy);
-            if (dist > 100) {
+            const followDist = zone.type === 'DARYNA_CLONE' ? 150 : 100;
+            const speed = zone.type === 'DARYNA_CLONE' ? 150 : 200;
+            
+            if (dist > followDist) {
                 const angle = Math.atan2(dy, dx);
-                zone.x += Math.cos(angle) * 200 * dt; // speed 200
-                zone.y += Math.sin(angle) * 200 * dt;
+                zone.x += Math.cos(angle) * speed * dt;
+                zone.y += Math.sin(angle) * speed * dt;
             }
 
             // Attack enemies
@@ -318,24 +324,28 @@ function updateSuperZones(dt) {
                 if (nearestEnemy) {
                     zone.lastAttack = 0;
                     const angle = Math.atan2(nearestEnemy.y - zone.y, nearestEnemy.x - zone.x);
+                    const projSpeed = 800;
+                    const percentDamage = zone.type === 'DARYNA_CLONE' ? 0.20 : 0.25;
+                    const color = zone.type === 'DARYNA_CLONE' ? '#ff00ff' : '#00ffff';
+                    
                     const proj = {
                         x: zone.x,
                         y: zone.y,
-                        vx: Math.cos(angle) * 800,
-                        vy: Math.sin(angle) * 800,
-                        radius: 15,
+                        vx: Math.cos(angle) * projSpeed,
+                        vy: Math.sin(angle) * projSpeed,
+                        radius: 10,
                         damage: 0,
                         isPercentDamage: true,
-                        percentAmount: 0.25,
-                        color: '#00ffff',
+                        percentAmount: percentDamage,
+                        color: color,
                         active: true,
                         isPlayer: true,
                         distanceTraveled: 0,
-                        maxDistance: 1000,
+                        maxDistance: zone.range,
                         update: function(dt, mapManager) {
                             this.x += this.vx * dt;
                             this.y += this.vy * dt;
-                            this.distanceTraveled += 800 * dt;
+                            this.distanceTraveled += projSpeed * dt;
                             if (this.distanceTraveled > this.maxDistance) this.active = false;
                         },
                         draw: function(ctx) {
@@ -357,7 +367,7 @@ function drawSuperZones(ctx) {
         ctx.save();
         
         if (zone.isCompanion && zone.type === 'ROBO_SPIDER') {
-            // Draw spider body
+            // Robo-spider drawing (unchanged)
             ctx.fillStyle = '#333';
             ctx.beginPath();
             ctx.arc(zone.x, zone.y, 25, 0, Math.PI * 2);
@@ -365,15 +375,11 @@ function drawSuperZones(ctx) {
             ctx.strokeStyle = '#00ffff';
             ctx.lineWidth = 3;
             ctx.stroke();
-            
-            // Draw eyes
             ctx.fillStyle = '#00ffff';
             ctx.beginPath();
             ctx.arc(zone.x - 8, zone.y - 5, 5, 0, Math.PI * 2);
             ctx.arc(zone.x + 8, zone.y - 5, 5, 0, Math.PI * 2);
             ctx.fill();
-
-            // Draw legs (simple lines)
             ctx.strokeStyle = '#333';
             ctx.lineWidth = 4;
             const time = performance.now() / 100;
@@ -384,6 +390,41 @@ function drawSuperZones(ctx) {
                 ctx.lineTo(zone.x + Math.cos(angle) * 40, zone.y + Math.sin(angle) * 40);
                 ctx.stroke();
             }
+        } else if (zone.isCompanion && zone.type === 'DARYNA_CLONE') {
+            // Small Darina clone
+            const cloneRadius = 15;
+            ctx.save();
+            ctx.translate(zone.x, zone.y);
+            
+            // Body/Circle bg
+            ctx.beginPath();
+            ctx.arc(0, 0, cloneRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff00ff';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw miniature Darina image
+            const darinaImg = new Image();
+            darinaImg.src = './public/assets/darina.png';
+            if (darinaImg.complete) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(0, 0, cloneRadius, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(darinaImg, -cloneRadius, -cloneRadius, cloneRadius * 2, cloneRadius * 2);
+                ctx.restore();
+            } else {
+                // Draw a small star or something as fallback
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('★', 0, 0);
+            }
+            
+            ctx.restore();
         } else {
             ctx.beginPath();
             ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
@@ -425,12 +466,13 @@ function checkCollisions() {
           }
       }
       
-      // Check collision with companions (Robo-Spiders)
+      // Check collision with companions
       for (let i = superZones.length - 1; i >= 0; i--) {
           const zone = superZones[i];
-          if (zone.isCompanion && zone.type === 'ROBO_SPIDER') {
+          if (zone.isCompanion && (zone.type === 'ROBO_SPIDER' || zone.type === 'DARYNA_CLONE')) {
+              const radius = zone.radius || 25;
               const dist = Math.hypot(proj.x - zone.x, proj.y - zone.y);
-              if (dist < 25 + proj.radius) { // spider radius is 25
+              if (dist < radius + proj.radius) {
                   zone.hits--;
                   proj.active = false;
                   if (zone.hits <= 0) {
@@ -775,15 +817,19 @@ modeGemGrabBtn.addEventListener('click', () => {
 function updateCharacterCards() {
     charCards.forEach(card => {
         const char = card.dataset.char;
-        if (char === 'BUBLYK' || char === 'SMAI') {
-            const unlocked = char === 'BUBLYK' ? isBublykUnlocked : isSmaiUnlocked;
-            if (unlocked) {
-                card.classList.remove('locked');
-                card.querySelector('span').innerText = char.charAt(0) + char.slice(1).toLowerCase();
-            } else {
-                card.classList.add('locked');
-                card.querySelector('span').innerText = 'LOCKED';
-            }
+        let unlocked = true;
+        if (char === 'BUBLYK') unlocked = isBublykUnlocked;
+        else if (char === 'SMAI') unlocked = isSmaiUnlocked;
+        else if (char === 'MAXIM') unlocked = isMaximUnlocked;
+        else if (char === 'NESTOR') unlocked = isNestorUnlocked;
+        else if (char === 'DARYNA') unlocked = isDarinaUnlocked;
+
+        if (unlocked) {
+            card.classList.remove('locked');
+            card.querySelector('span').innerText = char.charAt(0) + char.slice(1).toLowerCase();
+        } else {
+            card.classList.add('locked');
+            card.querySelector('span').innerText = 'LOCKED';
         }
     });
 }
@@ -792,17 +838,19 @@ const charCards = document.querySelectorAll('.char-card');
 charCards.forEach(card => {
     card.addEventListener('click', () => {
         const char = card.dataset.char;
-        if (char === 'BUBLYK' && !isBublykUnlocked) {
+        let unlocked = true;
+        if (char === 'BUBLYK') unlocked = isBublykUnlocked;
+        else if (char === 'SMAI') unlocked = isSmaiUnlocked;
+        else if (char === 'MAXIM') unlocked = isMaximUnlocked;
+        else if (char === 'NESTOR') unlocked = isNestorUnlocked;
+        else if (char === 'DARYNA') unlocked = isDarinaUnlocked;
+
+        if (!unlocked) {
             showRewardModal("LOCKED", []);
             rewardItemsContainer.innerHTML = '<div style="color: #fff; font-size: 20px;">Open boxes to find this brawler!</div>';
             return;
         }
-        if (char === 'SMAI' && !isSmaiUnlocked) {
-            showRewardModal("LOCKED", []);
-            rewardItemsContainer.innerHTML = '<div style="color: #fff; font-size: 20px;">Open boxes to find this brawler!</div>';
-            return;
-        }
-        // STAKAN and MAXIM are free
+        
         charCards.forEach(c => c.classList.remove('active'));
         card.classList.add('active');
         selectedCharacter = char;
@@ -982,6 +1030,68 @@ buyUltraBoxBtn.addEventListener('click', () => {
     }
 });
 
+const buyTripleBoxItem = document.querySelector('.shop-item.triple');
+if (buyTripleBoxItem) {
+    console.log("Triple Box item found!");
+    buyTripleBoxItem.onclick = (e) => {
+        // Only trigger if we didn't click something else interactive inside (though here it's mostly images/text)
+        console.log("Triple Box item clicked!");
+        try {
+            if (totalGems >= 5000) {
+                totalGems -= 5000;
+                
+                const ppReward = Math.floor(Math.random() * (7456 - 7000 + 1)) + 7000; 
+                const gemReward = Math.floor(Math.random() * (753 - 500 + 1)) + 500;
+                
+                totalPP += ppReward;
+                totalGems += gemReward;
+
+                let brawlersUnlockedList = [];
+                
+                if (!isMaximUnlocked && Math.random() < 0.05) {
+                    isMaximUnlocked = true;
+                    localStorage.setItem('isMaximUnlocked', 'true');
+                    brawlersUnlockedList.push("MAXIM");
+                }
+                if (!isNestorUnlocked && Math.random() < 0.07) {
+                    isNestorUnlocked = true;
+                    localStorage.setItem('isNestorUnlocked', 'true');
+                    brawlersUnlockedList.push("NESTOR");
+                }
+                if (!isDarinaUnlocked && Math.random() < 0.10) {
+                    isDarinaUnlocked = true;
+                    localStorage.setItem('isDarinaUnlocked', 'true');
+                    brawlersUnlockedList.push("DARYNA");
+                }
+                
+                if (brawlersUnlockedList.length > 0) {
+                    updateCharacterCards();
+                }
+                
+                localStorage.setItem('brawlGems', totalGems.toString());
+                localStorage.setItem('brawlPowerPoints', totalPP.toString());
+                
+                updateUIState();
+                
+                const rewards = [
+                    { type: 'PP', amount: ppReward },
+                    { type: 'GEMS', amount: gemReward }
+                ];
+                
+                let unlockedBrawler = brawlersUnlockedList.length > 0 ? brawlersUnlockedList[0] : null;
+                showRewardModal("TRIPLE BOX", rewards, unlockedBrawler);
+            } else {
+                showRewardModal("NOT ENOUGH GEMS", []);
+                rewardItemsContainer.innerHTML = '<div style="color: #ff4d4d; font-size: 20px; font-weight: bold;">This massive box costs 5000 gems!</div>';
+            }
+        } catch (err) {
+            console.error("Error in Triple Box click:", err);
+        }
+    };
+} else {
+    console.error("Triple Box button NOT found!");
+}
+
 buyUpgradeBtn.addEventListener('click', () => {
     const cost = getUpgradeCost(playerLevel);
     if (totalPP >= cost) {
@@ -1038,12 +1148,18 @@ resetBtn.addEventListener('click', () => {
         localStorage.removeItem('brawlPlayerLevel');
         localStorage.removeItem('isBublykUnlocked');
         localStorage.removeItem('isSmaiUnlocked');
+        localStorage.removeItem('isMaximUnlocked');
+        localStorage.removeItem('isNestorUnlocked');
+        localStorage.removeItem('isDarinaUnlocked');
         
         totalGems = 0;
         totalPP = 0;
         playerLevel = 1;
         isBublykUnlocked = false;
         isSmaiUnlocked = false;
+        isMaximUnlocked = false;
+        isNestorUnlocked = false;
+        isDarinaUnlocked = false;
         selectedCharacter = 'STAKAN';
         
         // Reset visual state
@@ -1059,7 +1175,7 @@ resetBtn.addEventListener('click', () => {
 });
 
 document.getElementById('admin-trigger').addEventListener('click', () => {
-    totalGems += 200;
+    totalGems += 1000;
     localStorage.setItem('brawlGems', totalGems.toString());
     updateUIState();
 });

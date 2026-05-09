@@ -367,6 +367,108 @@ body {
   text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
 }
 
+.shop-item.triple {
+  border: 4px solid #ffcc00;
+  box-shadow: 0 0 40px rgba(255, 204, 0, 0.4), inset 0 0 20px rgba(255, 255, 255, 0.1);
+  background: radial-gradient(circle at center, #2a2a4e 0%, #1a1a2e 100%);
+  position: relative;
+  overflow: hidden;
+  animation: triple-glow 2s infinite alternate;
+  transform: perspective(1000px);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+}
+
+.shop-item.triple:hover {
+  transform: perspective(1000px) scale(1.1) rotateY(10deg);
+  box-shadow: 0 0 60px rgba(255, 204, 0, 0.8), inset 0 0 30px rgba(255, 255, 255, 0.2);
+}
+
+.shop-item.triple::before {
+  content: '';
+  position: absolute;
+  top: -150%;
+  left: -150%;
+  width: 400%;
+  height: 400%;
+  background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.4) 50%, transparent 55%);
+  animation: triple-shine 3s infinite linear;
+}
+
+.shop-item.triple::after {
+  content: 'LEGENDARY';
+  position: absolute;
+  top: 15px;
+  right: -35px;
+  background: #ffcc00;
+  color: #000;
+  padding: 5px 40px;
+  transform: rotate(45deg);
+  font-weight: 900;
+  font-size: 14px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  z-index: 2;
+}
+
+.shop-item.triple h3 {
+  color: #fff;
+  text-shadow: 0 0 10px #ffcc00, 0 0 20px #ffcc00;
+  font-size: 32px;
+  margin-top: 10px;
+  letter-spacing: 2px;
+  font-weight: 900;
+}
+
+.shop-item.triple .gem-price {
+  color: #ffcc00;
+  font-size: 28px;
+  background: rgba(0,0,0,0.4);
+  display: inline-block;
+  padding: 5px 15px;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+@keyframes triple-glow {
+  0% { border-color: #ffcc00; box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); }
+  100% { border-color: #ffffff; box-shadow: 0 0 50px rgba(255, 204, 0, 0.9); }
+}
+
+@keyframes triple-shine {
+  0% { transform: translate(-50%, -50%) rotate(-45deg); }
+  100% { transform: translate(50%, 50%) rotate(-45deg); }
+}
+
+
+.triple-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  gap: 15px;
+  height: auto;
+  pointer-events: none;
+}
+
+.triple-preview img {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  border: 2px solid #ffcc00;
+  background: rgba(0,0,0,0.5);
+  object-fit: cover;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  transition: transform 0.2s;
+}
+
+.triple-preview img.featured {
+  width: 60px;
+  height: 60px;
+  transform: none;
+  border-color: #ffcc00;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
 #shop-back-btn {
   padding: 15px 40px;
   font-size: 24px;

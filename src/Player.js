@@ -14,10 +14,10 @@ export class Player {
     this.speedMultiplier = 1;
     this.speedBoostTimer = 0;
 
-    this.ammo = characterType === 'NESTOR' ? 5 : 3;
-    this.maxAmmo = characterType === 'NESTOR' ? 5 : 3;
+    this.ammo = (characterType === 'NESTOR' ? 5 : (characterType === 'DARYNA' ? 2 : 3));
+    this.maxAmmo = (characterType === 'NESTOR' ? 5 : (characterType === 'DARYNA' ? 2 : 3));
     this.reloadTimer = 0;
-    this.reloadTime = 1.5;
+    this.reloadTime = characterType === 'DARYNA' ? 2.0 : 1.5;
     this.fireRate = characterType === 'BUBLYK' ? 1.5 : (characterType === 'STAKAN' ? 1.0 : (characterType === 'MAXIM' ? 0.6 : (characterType === 'NESTOR' ? 0.4 : 0.2)));
     this.fireTimer = 0;
     this.gemCount = 0;
@@ -25,7 +25,7 @@ export class Player {
     this.respawnTimer = 0;
 
     this.image = new Image();
-    this.image.src = characterType === 'BUBLYK' ? './public/assets/bublyk.png' : (characterType === 'SMAI' ? './public/assets/smai.png' : (characterType === 'STAKAN' ? './public/assets/stakan.png' : (characterType === 'MAXIM' ? './public/assets/maxim.png' : (characterType === 'NESTOR' ? './public/assets/nestor.png' : './public/assets/shelly.png'))));
+    this.image.src = characterType === 'BUBLYK' ? './public/assets/bublyk.png' : (characterType === 'SMAI' ? './public/assets/smai.png' : (characterType === 'STAKAN' ? './public/assets/stakan.png' : (characterType === 'MAXIM' ? './public/assets/maxim.png' : (characterType === 'NESTOR' ? './public/assets/nestor.png' : (characterType === 'DARYNA' ? './public/assets/darina.png' : './public/assets/shelly.png')))));
     this.angle = 0;
 
     this.pendingShots = []; // For sequential attacks like Bublyk
@@ -184,8 +184,11 @@ export class Player {
       proj.isPercentDamage = true;
       proj.percentAmount = 0.50;
       proj.color = '#00ffff'; // Electric blue
+    } else if (this.characterType === 'DARYNA') {
+      this.executeShot(this.angle, projectiles, 0);
     }
   }
+
 
   executeShot(angle, projectiles, damage = null) {
     if (damage === null) {
@@ -212,10 +215,19 @@ export class Player {
     } else if (this.characterType === 'NESTOR') {
         color = '#00ffff';
         size = 12;
+    } else if (this.characterType === 'DARYNA') {
+        color = '#ff00ff';
+        size = 15;
     }
     
     const speed = this.characterType === 'MAXIM' ? 1200 : (this.characterType === 'NESTOR' ? 1000 : 800);
     const proj = new Projectile(spawnX, spawnY, angle, speed, damage, true, color, size);
+    
+    if (this.characterType === 'DARYNA') {
+        proj.isPercentDamage = true;
+        proj.percentAmount = 1.0; // 100% damage
+    }
+    
     projectiles.push(proj);
     return proj;
   }
@@ -304,6 +316,25 @@ export class Player {
         color: 'rgba(0, 255, 255, 0.5)',
         owner: 'PLAYER'
       });
+    } else if (this.characterType === 'DARYNA') {
+      // Daryna Super: 3 fragile Clones
+      for (let i = 0; i < 3; i++) {
+        const angle = (i / 3) * Math.PI * 2;
+        superZones.push({
+          x: this.x + Math.cos(angle) * 80,
+          y: this.y + Math.sin(angle) * 80,
+          isCompanion: true,
+          type: 'DARYNA_CLONE',
+          lastAttack: 0,
+          attackInterval: 3,
+          range: 1000,
+          hits: 1, // Dies in 1 hit
+          timer: 0,
+          duration: 30, // 30 seconds
+          color: 'rgba(255, 0, 255, 0.5)',
+          owner: 'PLAYER'
+        });
+      }
     }
   }
 
@@ -330,35 +361,46 @@ export class Player {
       ctx.ellipse(0, 5, this.radius, this.radius, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // The generated image might be a square with white bg, let's draw it as a circle
+      // Draw image as circle
       ctx.beginPath();
       ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
       ctx.clip();
       ctx.drawImage(this.image, -this.radius, -this.radius, this.radius * 2, this.radius * 2);
-
-      // Aim indicator
-      ctx.beginPath();
-      ctx.moveTo(this.radius, 0);
-      ctx.lineTo(this.radius + 20, 0);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.5;
-      ctx.stroke();
     } else {
+      // Fallback for missing images
       ctx.beginPath();
       ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#0af';
+      
+      // Different color based on type
+      if (this.characterType === 'DARYNA') ctx.fillStyle = '#ff00ff';
+      else if (this.characterType === 'SMAI') ctx.fillStyle = '#ffff00';
+      else if (this.characterType === 'BUBLYK') ctx.fillStyle = '#ff69b4';
+      else if (this.characterType === 'STAKAN') ctx.fillStyle = '#00d4ff';
+      else if (this.characterType === 'MAXIM') ctx.fillStyle = '#ffcc00';
+      else if (this.characterType === 'NESTOR') ctx.fillStyle = '#00ffff';
+      else ctx.fillStyle = '#0af';
+      
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(this.radius + 10, 0);
-      ctx.lineWidth = 8;
-      ctx.stroke();
+      // Draw initial
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(this.characterType[0], 0, 0);
     }
+
+    // Aim indicator
+    ctx.beginPath();
+    ctx.moveTo(this.radius, 0);
+    ctx.lineTo(this.radius + 20, 0);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke();
 
     ctx.restore();
   }
