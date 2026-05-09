@@ -68,18 +68,10 @@ export class Player {
       }
     }
 
-    let dx = 0;
-    let dy = 0;
-    if (input.isKeyPressed('KeyW') || input.isKeyPressed('ArrowUp')) dy -= 1;
-    if (input.isKeyPressed('KeyS') || input.isKeyPressed('ArrowDown')) dy += 1;
-    if (input.isKeyPressed('KeyA') || input.isKeyPressed('ArrowLeft')) dx -= 1;
-    if (input.isKeyPressed('KeyD') || input.isKeyPressed('ArrowRight')) dx += 1;
-
-    if (dx !== 0 && dy !== 0) {
-      const length = Math.hypot(dx, dy);
-      dx /= length;
-      dy /= length;
-    }
+    // Movement handling
+    const move = input.getMovement();
+    let dx = move.x;
+    let dy = move.y;
 
     const nextX = this.x + dx * this.speed * this.speedMultiplier * dt;
     const nextY = this.y + dy * this.speed * this.speedMultiplier * dt;
@@ -102,9 +94,9 @@ export class Player {
     this.x = Math.max(this.radius, Math.min(2000 - this.radius, this.x));
     this.y = Math.max(this.radius, Math.min(2000 - this.radius, this.y));
 
-    const mouseWorldX = input.mouse.x + camera.x;
-    const mouseWorldY = input.mouse.y + camera.y;
-    this.angle = Math.atan2(mouseWorldY - this.y, mouseWorldX - this.x);
+    // Aiming and firing
+    const aim = input.getAim(this.x, this.y, camera);
+    this.angle = aim.angle;
 
     if (this.fireTimer > 0) this.fireTimer -= dt;
 
@@ -118,7 +110,8 @@ export class Player {
       }
     }
 
-    if (input.mouse.down && this.fireTimer <= 0 && this.ammo > 0) {
+    const shouldFire = aim.released || (aim.down && !aim.active);
+    if (shouldFire && this.fireTimer <= 0 && this.ammo > 0) {
       this.fire(projectiles);
     }
     

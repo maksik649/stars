@@ -85,6 +85,10 @@ const playerGemScore = document.getElementById('player-gem-score');
 const enemyGemScore = document.getElementById('enemy-gem-score');
 const gemCountdown = document.getElementById('gem-countdown');
 
+// Mobile UI
+const mobileControls = document.getElementById('mobile-controls');
+const mobileSuperBtn = document.getElementById('mobile-super-btn');
+
 function getUpgradeCost(level) {
     return level * 20; // Level 1->2 costs 20, 2->3 costs 40, etc.
 }
@@ -172,8 +176,10 @@ function updateUI() {
     superBar.style.width = chargePercent + '%';
     if (player.isSuperReady) {
       superBar.classList.add('ready');
+      if (mobileSuperBtn) mobileSuperBtn.classList.add('ready');
     } else {
       superBar.classList.remove('ready');
+      if (mobileSuperBtn) mobileSuperBtn.classList.remove('ready');
     }
   }
   
@@ -755,6 +761,9 @@ updateCharacterCards();
 playBtn.addEventListener('click', () => {
     mainMenu.classList.add('hidden');
     uiLayer.classList.remove('hidden');
+    if (input.isMobile) {
+        mobileControls.classList.remove('hidden');
+    }
     initGame();
     lastTime = performance.now();
 });
@@ -913,6 +922,7 @@ restartBtn.addEventListener('click', () => {
 menuBtn.addEventListener('click', () => {
     gameOverScreen.classList.add('hidden');
     uiLayer.classList.add('hidden');
+    mobileControls.classList.add('hidden');
     mainMenu.classList.remove('hidden');
     gameState = 'MENU';
 });
@@ -949,6 +959,22 @@ document.getElementById('admin-trigger').addEventListener('click', () => {
     localStorage.setItem('brawlGems', totalGems.toString());
     updateUIState();
 });
+
+if (mobileSuperBtn) {
+    mobileSuperBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (gameState === 'PLAYING') {
+            if (player.characterType === 'NESTOR') {
+                const spiderCount = superZones.filter(z => z.isCompanion && z.type === 'ROBO_SPIDER').length;
+                if (spiderCount >= 3) {
+                    const oldestSpiderIndex = superZones.findIndex(z => z.isCompanion && z.type === 'ROBO_SPIDER');
+                    if (oldestSpiderIndex !== -1) superZones.splice(oldestSpiderIndex, 1);
+                }
+            }
+            player.useSuper(projectiles, superZones);
+        }
+    });
+}
 
 updateUIState();
 requestAnimationFrame(loop);
