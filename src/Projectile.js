@@ -1,12 +1,12 @@
 export class Projectile {
-  constructor(x, y, angle, speed, damage, isPlayer, color) {
+  constructor(x, y, angle, speed, damage, isPlayer, color, radius = 8) {
     this.x = x;
     this.y = y;
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
     this.damage = damage;
     this.isPlayer = isPlayer;
-    this.radius = 8;
+    this.radius = radius;
     this.color = color;
     this.distanceTraveled = 0;
     this.maxDistance = 600;
@@ -19,8 +19,8 @@ export class Projectile {
   }
 
   update(dt, mapManager) {
-    const dx = this.vx * dt * 60;
-    const dy = this.vy * dt * 60;
+    const dx = this.vx * dt;
+    const dy = this.vy * dt;
     this.x += dx;
     this.y += dy;
     this.distanceTraveled += Math.hypot(dx, dy);

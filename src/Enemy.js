@@ -28,6 +28,12 @@ export class Enemy {
     this.image = new Image();
     this.setImage();
     this.angle = 0;
+    
+    this.isVisible = true;
+    this.aiState = 'WANDER';
+    this.aiTimer = 1 + Math.random();
+    this.wanderAngle = Math.random() * Math.PI * 2;
+    this.inBush = false;
   }
 
   setupStats() {
@@ -143,6 +149,156 @@ export class Enemy {
     this.x = Math.max(this.radius, Math.min(2000 - this.radius, this.x));
     this.y = Math.max(this.radius, Math.min(2000 - this.radius, this.y));
 
+    this.aiTimer -= dt;
+    this.strafeTimer -= dt;
+    if (this.strafeTimer <= 0) {
+        this.strafeTimer = 1 + Math.random();
+        this.strafeDir *= -1;
+    }
+
+    const distToPlayer = player.active ? Math.hypot(this.x - player.x, this.y - player.y) : Infinity;
+    const playerInBush = mapManager && mapManager.isInBush(player.x, player.y);
+    const canSeePlayer = player.active && (!playerInBush || distToPlayer < 250 || player.lastFireTimer > 0);
+
+    if (canSeePlayer) {
+        this.angle = Math.atan2(player.y - this.y, player.x - this.x);
+    }
+
+    // Gem Grab Priority
+    let targetGem = null;
+    if (activeMode === 'GEM_GRAB' && this.gemCount < 10) {
+        let minGemDist = Infinity;
+        if (mapGems) {
+            for (const gem of mapGems) {
+                const d = Math.hypot(this.x - gem.x, this.y - gem.y);
+                if (d < minGemDist) {
+                    minGemDist = d;
+                    targetGem = gem;
+                }
+            }
+        }
+    }
+
+    // State Transitions
+    if (this.health < this.maxHealth * 0.35 && this.aiState !== 'RETREAT') {
+        this.aiState = 'RETREAT';
+        this.aiTimer = 5;
+    } else if (targetGem && this.aiState !== 'RETREAT') {
+        this.aiState = 'GET_GEMS';
+    } else if (canSeePlayer) {
+        if (this.aiState === 'AMBUSH') {
+            if (distToPlayer < this.range * 0.9) this.aiState = 'ATTACK';
+        } else if (this.aiState !== 'RETREAT') {
+            this.aiState = 'ATTACK';
+        }
+    } else if (this.aiState === 'ATTACK' || this.aiState === 'GET_GEMS') {
+        this.aiState = 'WANDER';
+        this.aiTimer = 2;
+    } else if (this.aiState === 'AMBUSH' && this.aiTimer <= 0) {
+        this.aiState = 'WANDER';
+        this.aiTimer = 2;
+    }
+
+    // AI Actions based on state
+    let ax = 0, ay = 0;
+    if (this.aiState === 'GET_GEMS' && targetGem) {
+        const angle = Math.atan2(targetGem.y - this.y, targetGem.x - this.x);
+        ax = Math.cos(angle);
+        ay = Math.sin(angle);
+    } else if (this.aiState === 'RETREAT') {
+        // Move towards nearest bush
+        let nearestBush = null;
+        let minBDist = Infinity;
+        if (mapManager) {
+            for (const b of mapManager.bushes) {
+                const d = Math.hypot(this.x - (b.x + b.w/2), this.y - (b.y + b.h/2));
+                if (d < minBDist) {
+                    minBDist = d;
+                    nearestBush = b;
+                }
+            }
+        }
+        if (nearestBush) {
+            const angle = Math.atan2((nearestBush.y + nearestBush.h/2) - this.y, (nearestBush.x + nearestBush.w/2) - this.x);
+            ax = Math.cos(angle);
+            ay = Math.sin(angle);
+        } else {
+            const angle = Math.atan2(this.y - player.y, this.x - player.x);
+            ax = Math.cos(angle);
+            ay = Math.sin(angle);
+        }
+        if (this.health > this.maxHealth * 0.8 || this.aiTimer <= 0) this.aiState = 'WANDER';
+    } else if (this.aiState === 'ATTACK') {
+        const angle = Math.atan2(player.y - this.y, player.x - this.x);
+        if (distToPlayer > this.range * 0.7) {
+            ax = Math.cos(angle);
+            ay = Math.sin(angle);
+        } else if (distToPlayer < this.range * 0.4 && this.type !== 'EL_PRIMO') {
+            ax = -Math.cos(angle);
+            ay = -Math.sin(angle);
+        }
+        const strafeAngle = angle + (Math.PI / 2) * this.strafeDir;
+        ax += Math.cos(strafeAngle) * 0.8;
+        ay += Math.sin(strafeAngle) * 0.8;
+    } else if (this.aiState === 'WANDER') {
+        if (this.aiTimer <= 0) {
+            this.wanderAngle = Math.random() * Math.PI * 2;
+            this.aiTimer = 1 + Math.random() * 2;
+            if (Math.random() < 0.2) {
+                this.aiState = 'AMBUSH';
+                this.aiTimer = 8 + Math.random() * 5;
+            }
+        }
+        ax = Math.cos(this.wanderAngle);
+        ay = Math.sin(this.wanderAngle);
+    } else if (this.aiState === 'AMBUSH') {
+        if (!mapManager || !mapManager.isInBush(this.x, this.y)) {
+            let nearestBush = null;
+            let minBDist = Infinity;
+            if (mapManager) {
+                for (const b of mapManager.bushes) {
+                    const d = Math.hypot(this.x - (b.x + b.w/2), this.y - (b.y + b.h/2));
+                    if (d < minBDist) {
+                        minBDist = d;
+                        nearestBush = b;
+                    }
+                }
+            }
+            if (nearestBush) {
+                const angle = Math.atan2((nearestBush.y + nearestBush.h/2) - this.y, (nearestBush.x + nearestBush.w/2) - this.x);
+                ax = Math.cos(angle);
+                ay = Math.sin(angle);
+            }
+        }
+    }
+
+    if (ax !== 0 || ay !== 0) {
+        const mag = Math.hypot(ax, ay);
+        if (mag > 0.01) {
+            const nax = ax / mag;
+            const nay = ay / mag;
+            const nextX = this.x + nax * this.speed * dt;
+            const nextY = this.y + nay * this.speed * dt;
+
+            if (mapManager) {
+                const collisionX = mapManager.checkCollision(nextX, this.y, this.radius);
+                if (!collisionX.collided) this.x = nextX;
+                const collisionY = mapManager.checkCollision(this.x, nextY, this.radius);
+                if (!collisionY.collided) this.y = nextY;
+                if (collisionX.collided && collisionY.collided && this.aiState === 'ATTACK') {
+                    this.strafeDir *= -1;
+                }
+            } else {
+                this.x = nextX;
+                this.y = nextY;
+            }
+        }
+    }
+
+    // Final Clamping
+    this.x = Math.max(this.radius, Math.min(2000 - this.radius, this.x));
+    this.y = Math.max(this.radius, Math.min(2000 - this.radius, this.y));
+
     // Attack timers
     if (this.fireTimer > 0) this.fireTimer -= dt;
     
@@ -157,17 +313,17 @@ export class Enemy {
                 this.isBursting = false;
             }
         }
-    } else if (player.active) {
-        const distToPlayer = Math.hypot(this.x - player.x, this.y - player.y);
-        const playerHidden = mapManager && mapManager.isInBush(player.x, player.y);
+    } else if (canSeePlayer) {
         if (distToPlayer < this.range && this.fireTimer <= 0) {
-            if (!playerHidden || distToPlayer < 200) {
-                this.startBurst();
-            }
+            this.startBurst();
         }
     }
     
     this.inBush = mapManager ? mapManager.isInBush(this.x, this.y) : false;
+    
+    // Determine visibility for the player
+    const sharedBushVision = playerInBush && this.inBush && distToPlayer < 400;
+    this.isVisible = !this.inBush || distToPlayer < 250 || this.isBursting || sharedBushVision;
   }
 
   startBurst() {
@@ -179,26 +335,26 @@ export class Enemy {
 
   performBurstShot(projectiles) {
     if (this.type === 'COLT') {
-        const spread = 0.05; // Tight spread for Colt
+        const spread = 0.05;
         const angle = this.angle + (Math.random() - 0.5) * spread;
-        projectiles.push(new Projectile(this.x, this.y, angle, 22, this.damage, false, '#ff4b2b'));
+        projectiles.push(new Projectile(this.x, this.y, angle, 900, this.damage, false, '#ff4b2b', 10));
     } else if (this.type === 'SHELLY') {
         const numPellets = 5;
         const spread = 0.5;
         for (let i = 0; i < numPellets; i++) {
             const angle = this.angle + (i - (numPellets - 1) / 2) * (spread / numPellets);
-            projectiles.push(new Projectile(this.x, this.y, angle, 15, this.damage, false, '#ff4b2b'));
+            projectiles.push(new Projectile(this.x, this.y, angle, 750, this.damage, false, '#ff4b2b', 8));
         }
     } else if (this.type === 'EL_PRIMO') {
         const angle = this.angle + (Math.random() - 0.5) * 0.3;
-        const p = new Projectile(this.x, this.y, angle, 25, this.damage, false, '#ffaa00');
-        p.maxDistance = 180;
+        const p = new Projectile(this.x, this.y, angle, 1100, this.damage, false, '#ffaa00', 15);
+        p.maxDistance = 200;
         projectiles.push(p);
     }
   }
 
   draw(ctx) {
-    if (!this.active) return;
+    if (!this.active || !this.isVisible) return;
 
     ctx.save();
     if (this.inBush) ctx.globalAlpha = 0.5;

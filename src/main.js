@@ -21,6 +21,9 @@ resize();
 const MAP_SIZE = 2000;
 const input = new InputManager();
 const camera = new Camera(canvas);
+if (input.isMobile) {
+    camera.zoom = 0.55; // Further increased field of view on mobile
+}
 const mapManager = new MapManager(MAP_SIZE);
 
 let player;
@@ -143,6 +146,11 @@ function showRewardModal(title, items, brawler = null) {
 }
 
 rewardCollectBtn.addEventListener('click', () => {
+    rewardModal.classList.add('hidden');
+});
+
+rewardCollectBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     rewardModal.classList.add('hidden');
 });
 
@@ -999,7 +1007,23 @@ restartBtn.addEventListener('click', () => {
     lastTime = performance.now();
 });
 
+restartBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    gameOverScreen.classList.add('hidden');
+    initGame();
+    lastTime = performance.now();
+});
+
 menuBtn.addEventListener('click', () => {
+    gameOverScreen.classList.add('hidden');
+    uiLayer.classList.add('hidden');
+    mobileControls.classList.add('hidden');
+    mainMenu.classList.remove('hidden');
+    gameState = 'MENU';
+});
+
+menuBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
     gameOverScreen.classList.add('hidden');
     uiLayer.classList.add('hidden');
     mobileControls.classList.add('hidden');

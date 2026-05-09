@@ -33,6 +33,7 @@ export class Player {
     this.superCharge = 0;
     this.maxSuperCharge = 100;
     this.isSuperReady = false;
+    this.lastFireTimer = 0;
   }
 
   update(dt, input, camera, projectiles, mapManager) {
@@ -115,12 +116,14 @@ export class Player {
       this.fire(projectiles);
     }
     
+    if (this.lastFireTimer > 0) this.lastFireTimer -= dt;
     this.inBush = mapManager ? mapManager.isInBush(this.x, this.y) : false;
   }
 
   fire(projectiles) {
     this.ammo--;
     this.fireTimer = this.fireRate;
+    this.lastFireTimer = 1.0; // Visible for 1s after firing
     if (this.ammo < this.maxAmmo && this.reloadTimer <= 0) {
       this.reloadTimer = this.reloadTime;
     }
@@ -192,26 +195,27 @@ export class Player {
     const spawnX = this.x + Math.cos(angle) * this.radius;
     const spawnY = this.y + Math.sin(angle) * this.radius;
     let color = '#ffcc00';
-    let size = 18;
+    let size = 10;
     
     if (this.characterType === 'BUBLYK') {
         color = '#ff69b4';
-        size = 25;
+        size = 14;
     } else if (this.characterType === 'SMAI') {
         color = '#ffff00';
-        size = 20;
+        size = 12;
     } else if (this.characterType === 'STAKAN') {
         color = '#00d4ff';
-        size = 22;
+        size = 12;
     } else if (this.characterType === 'MAXIM') {
         color = '#fff700';
-        size = 25;
+        size = 15;
     } else if (this.characterType === 'NESTOR') {
         color = '#00ffff';
-        size = 20;
+        size = 12;
     }
     
-    const proj = new Projectile(spawnX, spawnY, angle, size, damage, true, color);
+    const speed = this.characterType === 'MAXIM' ? 1200 : (this.characterType === 'NESTOR' ? 1000 : 800);
+    const proj = new Projectile(spawnX, spawnY, angle, speed, damage, true, color, size);
     projectiles.push(proj);
     return proj;
   }

@@ -26,14 +26,18 @@ export class InputManager {
 
   handleTouch(e) {
     if (e.type !== 'touchend') {
-        // Only prevent default if we are actually in the game (not in menus or modals)
-        const isMainMenuVisible = !document.getElementById('main-menu').classList.contains('hidden');
-        const isShopMenuVisible = !document.getElementById('shop-menu').classList.contains('hidden');
-        const isRewardModalVisible = !document.getElementById('reward-modal').classList.contains('hidden');
+        const isMainMenuVisible = !document.getElementById('main-menu')?.classList.contains('hidden');
+        const isShopMenuVisible = !document.getElementById('shop-menu')?.classList.contains('hidden');
+        const isRewardModalVisible = !document.getElementById('reward-modal')?.classList.contains('hidden');
+        const isGameOverVisible = !document.getElementById('game-over')?.classList.contains('hidden');
         
-        if (!isMainMenuVisible && !isShopMenuVisible && !isRewardModalVisible) {
-            e.preventDefault();
+        // If any menu is visible, allow the touch to pass through (don't preventDefault)
+        if (isMainMenuVisible || isShopMenuVisible || isRewardModalVisible || isGameOverVisible) {
+            return;
         }
+
+        // Otherwise, prevent scrolling/zooming during gameplay
+        e.preventDefault();
     }
 
     const rect = document.getElementById('game-canvas').getBoundingClientRect();
