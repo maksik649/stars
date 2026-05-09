@@ -26,8 +26,12 @@ export class InputManager {
 
   handleTouch(e) {
     if (e.type !== 'touchend') {
-        // Prevent scrolling/zooming while playing
-        if (document.getElementById('main-menu').classList.contains('hidden')) {
+        // Only prevent default if we are actually in the game (not in menus or modals)
+        const isMainMenuVisible = !document.getElementById('main-menu').classList.contains('hidden');
+        const isShopMenuVisible = !document.getElementById('shop-menu').classList.contains('hidden');
+        const isRewardModalVisible = !document.getElementById('reward-modal').classList.contains('hidden');
+        
+        if (!isMainMenuVisible && !isShopMenuVisible && !isRewardModalVisible) {
             e.preventDefault();
         }
     }
