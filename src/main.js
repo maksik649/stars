@@ -89,6 +89,15 @@ const gemCountdown = document.getElementById('gem-countdown');
 const mobileControls = document.getElementById('mobile-controls');
 const mobileSuperBtn = document.getElementById('mobile-super-btn');
 
+// Reward Modal UI
+const rewardModal = document.getElementById('reward-modal');
+const rewardTitle = document.getElementById('reward-title');
+const rewardItemsContainer = document.getElementById('reward-items');
+const rewardBrawlerContainer = document.getElementById('reward-brawler');
+const rewardBrawlerImg = document.getElementById('reward-brawler-img');
+const rewardBrawlerName = document.getElementById('reward-brawler-name');
+const rewardCollectBtn = document.getElementById('reward-collect-btn');
+
 function getUpgradeCost(level) {
     return level * 20; // Level 1->2 costs 20, 2->3 costs 40, etc.
 }
@@ -102,6 +111,40 @@ function updateUIState() {
     shopLevel.innerText = playerLevel;
     upgradeCostSpan.innerText = getUpgradeCost(playerLevel);
 }
+
+function showRewardModal(title, items, brawler = null) {
+    rewardTitle.innerText = title;
+    rewardItemsContainer.innerHTML = '';
+    
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'reward-item';
+        let imgSrc = '';
+        if (item.type === 'PP') imgSrc = './public/assets/pp.png'; // Make sure these exist or use placeholders
+        if (item.type === 'GEMS') imgSrc = './public/assets/gem.png';
+        
+        div.innerHTML = `
+            <img src="${imgSrc}" alt="${item.type}">
+            <div class="amount">${item.amount}</div>
+            <div class="label">${item.type === 'PP' ? 'Power Points' : 'Gems'}</div>
+        `;
+        rewardItemsContainer.appendChild(div);
+    });
+
+    if (brawler) {
+        rewardBrawlerContainer.classList.remove('hidden');
+        rewardBrawlerImg.src = `./public/assets/${brawler.toLowerCase()}.png`;
+        rewardBrawlerName.innerText = brawler;
+    } else {
+        rewardBrawlerContainer.classList.add('hidden');
+    }
+
+    rewardModal.classList.remove('hidden');
+}
+
+rewardCollectBtn.addEventListener('click', () => {
+    rewardModal.classList.add('hidden');
+});
 
 function initGame() {
   activeMode = selectedMode;
@@ -742,11 +785,13 @@ charCards.forEach(card => {
     card.addEventListener('click', () => {
         const char = card.dataset.char;
         if (char === 'BUBLYK' && !isBublykUnlocked) {
-            alert('This brawler is locked! Open boxes to find him.');
+            showRewardModal("LOCKED", []);
+            rewardItemsContainer.innerHTML = '<div style="color: #fff; font-size: 20px;">Open boxes to find this brawler!</div>';
             return;
         }
         if (char === 'SMAI' && !isSmaiUnlocked) {
-            alert('This brawler is locked! Open boxes to find him.');
+            showRewardModal("LOCKED", []);
+            rewardItemsContainer.innerHTML = '<div style="color: #fff; font-size: 20px;">Open boxes to find this brawler!</div>';
             return;
         }
         // STAKAN and MAXIM are free
@@ -809,9 +854,20 @@ buyBoxBtn.addEventListener('click', () => {
         localStorage.setItem('brawlPowerPoints', totalPP.toString());
         
         updateUIState();
-        alert(`You opened a Mega Box!\nRewards:\n- ${ppReward} Power Points\n- ${gemReward} Gems${unlockMessage}`);
+        
+        const rewards = [
+            { type: 'PP', amount: ppReward },
+            { type: 'GEMS', amount: gemReward }
+        ];
+        
+        let unlockedBrawler = null;
+        if (unlockMessage.includes("BUBLYK")) unlockedBrawler = "BUBLYK";
+        else if (unlockMessage.includes("SMAI")) unlockedBrawler = "SMAI";
+
+        showRewardModal("MEGA BOX", rewards, unlockedBrawler);
     } else {
-        alert('Not enough Gems! Play the game to earn more.');
+        showRewardModal("NOT ENOUGH GEMS", []);
+        rewardItemsContainer.innerHTML = '<div style="color: #ff4d4d; font-size: 20px; font-weight: bold;">Earn more gems in Gem Grab or Showdown!</div>';
     }
 });
 
@@ -846,9 +902,20 @@ buyOmegaBoxBtn.addEventListener('click', () => {
         localStorage.setItem('brawlPowerPoints', totalPP.toString());
         
         updateUIState();
-        alert(`You opened an OMEGA BOX!\nRewards:\n- ${ppReward} Power Points\n- ${gemReward} Gems${unlockMessage}`);
+        
+        const rewards = [
+            { type: 'PP', amount: ppReward },
+            { type: 'GEMS', amount: gemReward }
+        ];
+        
+        let unlockedBrawler = null;
+        if (unlockMessage.includes("BUBLYK")) unlockedBrawler = "BUBLYK";
+        else if (unlockMessage.includes("SMAI")) unlockedBrawler = "SMAI";
+
+        showRewardModal("OMEGA BOX", rewards, unlockedBrawler);
     } else {
-        alert('Not enough Gems! Play the game to earn more.');
+        showRewardModal("NOT ENOUGH GEMS", []);
+        rewardItemsContainer.innerHTML = '<div style="color: #ff4d4d; font-size: 20px; font-weight: bold;">This legendary box requires 200 gems!</div>';
     }
 });
 
@@ -891,9 +958,19 @@ buyUltraBoxBtn.addEventListener('click', () => {
         localStorage.setItem('brawlPowerPoints', totalPP.toString());
         
         updateUIState();
-        alert(`You opened an ULTRA MEGA BOX!\nRewards:\n- ${ppReward} Power Points\n- ${gemReward} Gems${unlockMessage}`);
+        
+        const rewards = [
+            { type: 'PP', amount: ppReward },
+            { type: 'GEMS', amount: gemReward }
+        ];
+        
+        // Handle multiple unlocks in Ultra box if needed
+        let unlockedBrawler = brawlersUnlocked.length > 0 ? brawlersUnlocked[0] : null;
+
+        showRewardModal("ULTRA MEGA BOX", rewards, unlockedBrawler);
     } else {
-        alert('Not enough Gems! You need 1000 gems for this cosmic box.');
+        showRewardModal("NOT ENOUGH GEMS", []);
+        rewardItemsContainer.innerHTML = '<div style="color: #ff4d4d; font-size: 20px; font-weight: bold;">You need 1000 gems for this cosmic box!</div>';
     }
 });
 
@@ -907,9 +984,12 @@ buyUpgradeBtn.addEventListener('click', () => {
         localStorage.setItem('brawlPlayerLevel', playerLevel.toString());
         
         updateUIState();
-        alert(`Upgraded to Level ${playerLevel}! Stats increased by 10%.`);
+        showRewardModal("UPGRADED!", [], null);
+        rewardTitle.innerText = `LEVEL ${playerLevel}`;
+        rewardItemsContainer.innerHTML = '<div style="color: #fff; font-size: 20px;">Stats increased by 10%</div>';
     } else {
-        alert('Not enough Power Points! Open Mega Boxes to get more.');
+        showRewardModal("NOT ENOUGH PP", []);
+        rewardItemsContainer.innerHTML = '<div style="color: #ff4d4d; font-size: 20px; font-weight: bold;">Open boxes to get more Power Points!</div>';
     }
 });
 
